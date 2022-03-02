@@ -6,17 +6,18 @@
 ##########
 
 #' Apply a standard seurat workflow to a seurat object
-#' @param seurat_object
-#' @param assay
-#' @param nfeatures_vst
-#' @param clean_hvg
-#' @param normalize_data
-#' @param npcs_PCA
-#' @param findClusters
-#' @param calcUMAP
-#' @param clusterRes
-#' @param key
-#' @param seed
+#'
+#' @param seurat_object seurat object
+#' @param assay which assay
+#' @param nfeatures_vst number of features for HVG detection
+#' @param clean_hvg clean up HVGs with basic regex
+#' @param normalize_data normalize data with standard logNorm
+#' @param npcs_PCA how many pcs to save
+#' @param findClusters run neighbor and cluster detection with seurat standard
+#' @param calcUMAP calc standard seurat UMAP
+#' @param clusterRes resolution for clustering
+#' @param key name/key for dimred (will name PCA like this and then use for all following steps)
+#' @param seed random seed
 #'
 #' @return processed seurat_object
 #'
@@ -25,7 +26,7 @@
 #' @import Seurat
 
 # run seurat standard pipeline on an onject
-seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 2000,clean_hvg=F,normalize_data=F,npcs_PCA = 50,findClusters =F,calcUMAP=TRUE,clusterRes = 1,key="pca",seed=123){
+seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 2000,clean_hvg=FALSE,normalize_data=TRUE,npcs_PCA = 50,findClusters =F,calcUMAP=TRUE,clusterRes = 1,key="pca",seed=123){
   message("Running standard seurat recipe.")
   set.seed(seed)
   if(dim(seurat_object@assays[[assay]]@data)[2]==0){normalize_data=TRUE}

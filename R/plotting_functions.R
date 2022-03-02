@@ -18,6 +18,8 @@
 #' @export
 #'
 #' @import ggplot2 scattermore
+#'
+#' @importFrom rlang as_label
 
 rasterize_ggplot = function(plot,pixel_raster = 1024,pixel_raster_y = NULL,interpolate=FALSE,pointsize = 1){
   # if NULL will use pixel_raster else use different for y
@@ -35,11 +37,11 @@ rasterize_ggplot = function(plot,pixel_raster = 1024,pixel_raster_y = NULL,inter
     # make a plot with a rasterized geom
     rasterized_plot = rasterized_plot + scattermore::geom_scattermore(
       mapping = aes_string(
-        x = as_label(geom_point_layer$mapping$x),
-        y = as_label(geom_point_layer$mapping$y),
-        color = paste0("`", as_label(geom_point_layer$mapping$colour), "`"),
-        shape = as_label(geom_point_layer$mapping$shape),
-        alpha = as_label(geom_point_layer$mapping$alpha)
+        x = rlang::as_label(geom_point_layer$mapping$x),
+        y = rlang::as_label(geom_point_layer$mapping$y),
+        color = paste0("`", rlang::as_label(geom_point_layer$mapping$colour), "`"),
+        shape = rlang::as_label(geom_point_layer$mapping$shape),
+        alpha = rlang::as_label(geom_point_layer$mapping$alpha)
       ),
       interpolate = interpolate,
       pointsize = pointsize,

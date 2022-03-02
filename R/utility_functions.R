@@ -14,7 +14,7 @@
 #'
 #' @export
 #'
-#' @import jsonlite
+#' @importFrom jsonlite toJSON
 
 writeList_to_JSON = function(list_with_rows,filename){
   jsonfile = jsonlite::toJSON(list_with_rows, pretty = TRUE, auto_unbox = TRUE,digits = NA)
@@ -39,6 +39,8 @@ writeList_to_JSON = function(list_with_rows,filename){
 #' @return downsampled metadata
 #'
 #' @export
+#'
+#' @import dplyr
 
 downsample_balanced_iterative = function(metadata,target_sample_size,predictor_var,stepsize =100,global_seed=1234){
   message("Running downsample_balanced_iterative")
@@ -87,6 +89,8 @@ downsample_balanced_iterative = function(metadata,target_sample_size,predictor_v
 #' @return matrix or long dataframe
 #'
 #' @export
+#'
+#' @import dplyr
 
 gene_pct_cluster = function(seurat_object,genes,col_name,min_expression=0,return_long=FALSE){
   # check
