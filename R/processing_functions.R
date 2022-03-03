@@ -2,6 +2,69 @@
 # processing function for singl cell data (mostly seurat based)
 
 ##########
+### function: Read10xFormat
+##########
+
+#' Read10xFormat
+#'
+#' Similar to Seurat's ReadMtx but with less error handling and options
+#' Sometimes ReadMtx does not work --> then use this
+#'
+#' @param mtx Name of the mtx file
+#' @param cells Name of the cells file
+#' @param features Name of the features file
+#' @param cell.column Specify which column of cells file to use for cell names; default is 1
+#' @param feature.column Specify which column of features files to use for feature/gene names; default is 2
+#'
+#' @return dgCMatrix with row and col names
+#'
+#' @export
+#'
+#' @import Matrix
+#'
+#' @importFrom data.table fread
+
+Read10xFormat= function(mtx,cells,features, cell.column = 1,feature.column = 2){
+  matrix = Matrix::readMM(mtx)
+  matrix = as(matrix, "dgCMatrix")
+  barcodes = data.table::fread(cells,data.table = F,header = FALSE)
+  features = data.table::fread(features,data.table = F,header = FALSE)
+  colnames(matrix) = barcodes[,cell.column]
+  rownames(matrix) = features[,feature.column]
+  return(matrix)
+}
+
+
+##########
+### function: ReadDGEFormat
+##########
+
+#' ReadDGEFormat
+#'
+#' Read dge file
+#'
+#' @param dge Name of the dge file
+#' @param feature.column Specify which column of the dge matrix will be used as rownames (cell column start from feature.column+1)
+#'
+#' @return dgCMatrix with row and col names
+#'
+#' @export
+#'
+#' @import Matrix
+#'
+#' @importFrom data.table fread
+
+ReadDGEFormat= function(dge, feature.column = 1){
+  matrix = data.table::fread(dge,data.table = FALSE)
+  features = matrix[,feature.column]
+  matrix = matrix[,(feature.column+1):ncol(matrix)]
+  rownames(matrix) = features
+  matrix = as(as.matrix(matrix), "dgCMatrix")
+  return(matrix)
+}
+
+
+##########
 ### function: seurat_recipe
 ##########
 
