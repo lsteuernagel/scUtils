@@ -2,6 +2,7 @@
 
 export(Read10xFormat)
 export(ReadDGEFormat)
+export(determine_cluster_resolution)
 export(downsample_balanced_iterative)
 export(gene_pct_cluster)
 export(identify_variable_features)

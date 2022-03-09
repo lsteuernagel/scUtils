@@ -172,3 +172,49 @@ identify_variable_features = function(seurat_object,n_hvgs_sizes=1000,batch_var,
   }
   return(seurat_object)
 }
+
+##########
+### determine_cluster_resolution
+##########
+
+#' Find resolution closest to target_cluster_number
+#'
+#' Wrapper around Seurat::FindClusters
+#'
+#' @param seurat_object seurat object
+#' @param target_cluster_number integer of desired unique clusters
+#' @param resolutions resolutions to calculate
+#' @param min_cells min cells for a cluster to count (default: 5)
+#' @param graph_name graph_name in seurat_object (default: 'RNA_snn')
+#' @param cluster_col_name  name for clumn in seurat object that will contain the clusters from the best resolution. (Defaults to 'seurat_clusters')
+#' @param return_seurat  return cluster resolution name or seurat object with column cluster_col_name
+#' @param seed random seed
+#' @param ... other parameters passed on to Seurat::FindClusters
+#'
+#' @return seurat_object with variable features in misc$var_features
+#'
+#' @export
+#'
+#' @import Seurat
+#'
+
+determine_cluster_resolution <- function(seurat_object,target_cluster_number,resolutions = c(0.5,0.75,1,1.5,2:10),min_cells=5,graph_name = "RNA_snn",cluster_col_name = "seurat_clusters",return_seurat =TRUE,seed = 1234,...){
+
+  # run clustering (louvain)
+  seurat_object = Seurat::FindClusters(seurat_object,resolution = resolutions,graph.name = graph_name,random.seed =seed,verbose=FALSE,...)
+  # identify res clostest to target
+  n_clusters_per_res = apply(seurat_object@meta.data[,paste0(graph_name,"_res.",resolutions)],2,function(x,min_cells){length(table(x)[table(x)>min_cells])},min_cells=min_cells)
+  res_with_target_n = which(abs(n_clusters_per_res-target_cluster_number)== min(abs(n_clusters_per_res-target_cluster_number)))[1]
+  # return
+  if(return_seurat){
+    seurat_object@meta.data[,cluster_col_name] = seurat_object@meta.data[,res_with_target_n]
+    return(seurat_object)
+  }else{
+    return(res_with_target_n)
+  }
+}
+
+
+
+
+
