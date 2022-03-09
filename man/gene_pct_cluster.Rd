@@ -21,7 +21,7 @@ gene_pct_cluster(
 
 \item{min_expression}{min expressio. defaults to 0}
 
-\item{return_long}{}
+\item{return_long}{return data frame in lonf format}
 }
 \value{
 matrix or long dataframe

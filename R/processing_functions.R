@@ -23,10 +23,11 @@
 #' @import Matrix
 #'
 #' @importFrom data.table fread
+#' @importFrom methods as
 
 Read10xFormat= function(mtx,cells,features, cell.column = 1,feature.column = 2){
   matrix = Matrix::readMM(mtx)
-  matrix = as(matrix, "dgCMatrix")
+  matrix = methods::as(matrix, "dgCMatrix")
   barcodes = data.table::fread(cells,data.table = F,header = FALSE)
   features = data.table::fread(features,data.table = F,header = FALSE)
   colnames(matrix) = barcodes[,cell.column]
@@ -53,13 +54,14 @@ Read10xFormat= function(mtx,cells,features, cell.column = 1,feature.column = 2){
 #' @import Matrix
 #'
 #' @importFrom data.table fread
+#' @importFrom methods as
 
 ReadDGEFormat= function(dge, feature.column = 1){
   matrix = data.table::fread(dge,data.table = FALSE)
   features = matrix[,feature.column]
   matrix = matrix[,(feature.column+1):ncol(matrix)]
   rownames(matrix) = features
-  matrix = as(as.matrix(matrix), "dgCMatrix")
+  matrix = methods::as(as.matrix(matrix), "dgCMatrix")
   return(matrix)
 }
 
@@ -94,12 +96,12 @@ seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 2000,clean_hv
   set.seed(seed)
   if(dim(seurat_object@assays[[assay]]@data)[2]==0){normalize_data=TRUE}
   if(normalize_data){
-    seurat_object <- NormalizeData(object = seurat_object, verbose = F,assay=assay)
+    seurat_object <- Seurat::NormalizeData(object = seurat_object, verbose = F,assay=assay)
   }else{
     message("Skipping Normalization")
   }
   message("Find HVGs")
-  seurat_object <- FindVariableFeatures(object = seurat_object,assay=assay, selection.method = "vst", nfeatures = nfeatures_vst, verbose = F)
+  seurat_object <- Seurat::FindVariableFeatures(object = seurat_object,assay=assay, selection.method = "vst", nfeatures = nfeatures_vst, verbose = F)
   # ignore mt and rpl/s genes in hvg
   if(clean_hvg){
     idx = grep("mt-|Rpl|Rps",seurat_object@assays[[assay]]@var.features)
@@ -110,17 +112,17 @@ seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 2000,clean_hv
     }
   }
   message("Run Scale and PCA")
-  seurat_object <- ScaleData(object = seurat_object,assay=assay, verbose = F)
-  seurat_object <- RunPCA(object = seurat_object,assay=assay, npcs = npcs_PCA,reduction.name = key,reduction.key=key, verbose = F,seed.use = seed)
+  seurat_object <- Seurat::ScaleData(object = seurat_object,assay=assay, verbose = F)
+  seurat_object <- Seurat::RunPCA(object = seurat_object,assay=assay, npcs = npcs_PCA,reduction.name = key,reduction.key=key, verbose = F,seed.use = seed)
   message("Run Umap...")
   if(key=="pca"){umap_key="umap"}else{umap_key=paste0("umap_",key)}
   if(calcUMAP){
-    seurat_object <- RunUMAP(object = seurat_object,assay=assay, reduction = key,reduction.name=umap_key,reduction.key=umap_key, dims = 1:npcs_PCA,verbose = F,seed.use = seed)
+    seurat_object <- Seurat::RunUMAP(object = seurat_object,assay=assay, reduction = key,reduction.name=umap_key,reduction.key=umap_key, dims = 1:npcs_PCA,verbose = F,seed.use = seed)
   }
   if(findClusters){
     message("Run Graph & Clustering...")
-    seurat_object <- FindNeighbors(seurat_object,reduction = key, dims = 1:npcs_PCA,k.param = 20,verbose = F)
-    seurat_object <- FindClusters(seurat_object, resolution = clusterRes,verbose = F,random.seed = seed)
+    seurat_object <- Seurat::FindNeighbors(seurat_object,reduction = key, dims = 1:npcs_PCA,k.param = 20,verbose = F)
+    seurat_object <- Seurat::FindClusters(seurat_object, resolution = clusterRes,verbose = F,random.seed = seed)
 
   }
   message("umap name: ",umap_key)
@@ -215,6 +217,80 @@ determine_cluster_resolution <- function(seurat_object,target_cluster_number,res
 }
 
 
+##########
+### apply_DoubletFinder
+##########
+
+#' Run DoubletFinder on an Seurat object
+#'
+#' Wrapper around Seurat::FindClusters
+#'
+#' see also: https://github.com/chris-mcginnis-ucsf/DoubletFinder
+#'
+#' @param seurat_object seurat object
+#' @param npcs_PCA how many PCs to use (DoubletFinder wil run its own PCA!)
+#' @param pN_fixed pN to pass to DoubletFidner
+#' @param pK_max pK will be estimated, this parameter allows to se a maximum cap
+#' @param doublet_formation_rate how many doublets are expected. Deafults to 0.075
+#' @param adjust_nExp whether to adjust number of doublets with modelHomotypic
+#' @param doublet_cluster_tresh  defaults to NULL. if not NULL: Clusters with more than doublet_cluster_tresh pct of cells will completely be considered Doublets
+#' @param cluster_column  metadata column with clusters
+#' @param return_seurat whether to return seurat with 'Doublet' column
+#'
+#' @return seurat with 'Doublet' column or named vector
+#'
+#' @export
+#'
+#' @import Seurat dplyr
+#'
+
+apply_DoubletFinder <- function(seurat_object,npcs_PCA=50,pN_fixed=0.25,pK_max=NULL,doublet_formation_rate=0.075,adjust_nExp = FALSE, doublet_cluster_tresh =NULL,cluster_column="seurat_clusters",return_seurat=TRUE){
+
+  # optional use of packages:
+  if (!requireNamespace("DoubletFinder", quietly = TRUE)) {
+    warning("The DoubletFinder package must be installed to use this function")
+    return(NULL)
+  }
+  ## pK Identification (no ground-truth)
+  sweep.res.seurat_object <- DoubletFinder::paramSweep_v3(seurat_object, PCs = 1:npcs_PCA, sct = FALSE)
+  sweep.stats_seurat_object <- DoubletFinder::summarizeSweep(sweep.res.seurat_object, GT = FALSE)
+  bcmvn_seurat_object <- DoubletFinder::find.pK(sweep.stats_seurat_object)
+  pK_at_BCmetrci_max = as.numeric(as.character(bcmvn_seurat_object$pK[bcmvn_seurat_object$BCmetric == max(bcmvn_seurat_object$BCmetric)]))
+  if(!is.null(pK_max)){if(pK_at_BCmetrci_max > pK_max){pK_at_BCmetrci_max = pK_max}}
+
+  ## Homotypic Doublet Proportion Estimate
+  nExp_poi <- round(doublet_formation_rate*nrow(seurat_object@meta.data))
+  if(adjust_nExp){
+    homotypic.prop <- DoubletFinder::modelHomotypic(seurat_object@meta.data[,cluster_column])
+    nExp_poi <- round(nExp_poi*(1-homotypic.prop))
+  }
+
+  ## Run DoubletFinder
+  seurat_object <- DoubletFinder::doubletFinder_v3(seurat_object, PCs = 1:npcs_PCA, pN = pN_fixed, pK = pK_at_BCmetrci_max, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE)
+  reuse.pANN = paste0("pANN_",pN_fixed,"_",pK_at_BCmetrci_max,"_",nExp_poi)
+  # final Doublet column:
+  seurat_object@meta.data$Doublet = seurat_object@meta.data[,paste0("DF.classifications_",gsub("pANN_","",reuse.pANN))]
+
+  # optionally add cells in clusters with many doublets
+  if(!is.null(doublet_cluster_tresh)){
+    if(doublet_cluster_tresh>1){doublet_cluster_tresh = 1}
+    # calculate pct of doublets per cluster
+    doublet_stats_per_cluster = seurat_object@meta.data %>% dplyr::select(cluster = !!rlang::sym(cluster_column),doublet_finder_classification = !!rlang::sym(paste0("DF.classifications_",gsub("pANN_","",reuse.pANN)))) %>%
+      dplyr::group_by(cluster) %>% dplyr::add_count(name="cells_per_cluster") %>% dplyr::filter(doublet_finder_classification=="Doublet") %>% dplyr::add_count(name="doublet_per_cluster") %>%
+      dplyr::distinct(cluster,cells_per_cluster,doublet_per_cluster) %>% dplyr::mutate(doublet_pct = doublet_per_cluster / cells_per_cluster)
+    # also filter out full cluster with certain pct!
+    cells_in_doublet_clusters = rownames(seurat_object@meta.data)[seurat_object@meta.data[,cluster_column] %in% doublet_stats_per_cluster$cluster[doublet_stats_per_cluster$doublet_pct >= doublet_cluster_tresh]]
+    seurat_object@meta.data$Doublet[rownames(seurat_object@meta.data) %in% cells_in_doublet_clusters] = "Doublet"
+  }
+  if(return_seurat){
+    return(seurat_object)
+  }else{
+    retvec = as.character(seurat_object@meta.data$Doublet)
+    names(retvec) = rownames(seurat_object@meta.data)
+    return(retvec)
+  }
+
+}
 
 
 

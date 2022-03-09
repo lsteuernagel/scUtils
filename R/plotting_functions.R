@@ -7,6 +7,8 @@
 #' Makes use of scattermore::geom_scattermore to substitute GeomPoint layer in ggplot objects with an equivalent rasterized version.
 #' Allows to manually modify the resolution of rasterized plots from Seurat plots!
 #'
+#' Requires the scattermore package.
+#'
 #' @param plot ggplot2 or patchwork object. For example output of Seurat's DimPlot or FeaturePlot
 #' @param pixel_raster integer: number of pixels passed to pixels argument (x and optionall y) from scattermore::geom_scattermore. Defaults to 1024
 #' @param pixel_raster_y pixel_raster_y: to use a different y pixels than x. Defaults to NULL which will use the value from pixel_raster in x and y
@@ -17,11 +19,18 @@
 #'
 #' @export
 #'
-#' @import ggplot2 scattermore
+#' @import ggplot2
 #'
 #' @importFrom rlang as_label
 
 rasterize_ggplot = function(plot,pixel_raster = 1024,pixel_raster_y = NULL,interpolate=FALSE,pointsize = 1){
+
+  # optional use of packages:
+  if (!requireNamespace("scattermore", quietly = TRUE)) {
+    warning("The scattermore package must be installed to use this function")
+    return(NULL)
+  }
+
   # if NULL will use pixel_raster else use different for y
   if(is.null(pixel_raster_y)){pixel_raster_y = pixel_raster}
   # get the geom point mapping

@@ -30,3 +30,6 @@ ggplot object with GeomPoint layers changed to GeomScattermore with rastrized ve
 Makes use of scattermore::geom_scattermore to substitute GeomPoint layer in ggplot objects with an equivalent rasterized version.
 Allows to manually modify the resolution of rasterized plots from Seurat plots!
 }
+\details{
+Requires the scattermore package.
+}

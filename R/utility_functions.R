@@ -115,6 +115,10 @@ writeList_to_JSON = function(list_with_rows,filename){
 
 downsample_balanced_iterative = function(metadata,target_sample_size,predictor_var,stepsize =100,global_seed=1234){
   message("Running downsample_balanced_iterative")
+  if(!"Cell_ID" %in% colnames(metadata)){
+    warning("Error: metadata requires a column 'Cell_ID'")
+    return(NULL)
+  }
   metadata = as.data.frame(metadata)
   # group and count full data
   probs_for_sample = metadata %>% dplyr::ungroup() %>% dplyr::group_by(!!dplyr::sym(predictor_var)) %>% dplyr::add_count(name = "per_group") %>% dplyr::select(Cell_ID,per_group,!!dplyr::sym(predictor_var))
@@ -155,13 +159,14 @@ downsample_balanced_iterative = function(metadata,target_sample_size,predictor_v
 #' @param genes which genes
 #' @param col_name metadata_column
 #' @param min_expression min expressio. defaults to 0
-#' @param return_long
+#' @param return_long return data frame in lonf format
 #'
 #' @return matrix or long dataframe
 #'
 #' @export
 #'
 #' @import dplyr
+#' @importFrom tidyr gather
 
 gene_pct_cluster = function(seurat_object,genes,col_name,min_expression=0,return_long=FALSE){
   # check

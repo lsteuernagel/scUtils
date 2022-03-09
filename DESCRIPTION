@@ -9,8 +9,8 @@ Authors@R:
            comment = c(ORCID = "YOUR-ORCID-ID"))
 Description: What the package does (one paragraph).
 License: MIT + file LICENSE
-Imports: Seurat, SeuratObject, dplyr, jsonlite, Matrix, scattermore, ggplot2, rlang
-Suggests: SeuratDisk
+Imports: Seurat, SeuratObject, dplyr, tidyr, jsonlite, Matrix, ggplot2, rlang, data.table, methods
+Suggests: SeuratDisk, DoubletFinder, scattermore
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
