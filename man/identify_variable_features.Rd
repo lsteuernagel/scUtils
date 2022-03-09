@@ -11,6 +11,7 @@ identify_variable_features(
   assay_name = "RNA",
   method = "vst",
   ignore_genes_regex = NULL,
+  returnSeurat = TRUE,
   seed = 123
 )
 }
@@ -19,13 +20,15 @@ identify_variable_features(
 
 \item{n_hvgs_sizes}{integer or integer vector of desired feature set sizes}
 
-\item{batch_var}{where to store the results}
+\item{batch_var}{var to split by}
 
 \item{assay_name}{seurat object assay}
 
 \item{method}{which HVG method : selection.method from Seurat::FindVariableFeatures}
 
 \item{ignore_genes_regex}{a regex o filter genes from HVGs}
+
+\item{returnSeurat}{return seurat}
 
 \item{seed}{random seed}
 }

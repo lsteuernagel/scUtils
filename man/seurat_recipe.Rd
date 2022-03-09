@@ -7,12 +7,15 @@
 seurat_recipe(
   seurat_object,
   assay = "RNA",
-  nfeatures_vst = 2000,
-  clean_hvg = FALSE,
+  nfeatures_vst = 1000,
+  sample_column = NULL,
+  remove_hvgs = FALSE,
+  genes_to_remove = character(0),
   normalize_data = TRUE,
   npcs_PCA = 50,
-  findClusters = F,
   calcUMAP = TRUE,
+  k.param = 20,
+  findClusters = F,
   clusterRes = 1,
   key = "pca",
   seed = 123
@@ -25,15 +28,21 @@ seurat_recipe(
 
 \item{nfeatures_vst}{number of features for HVG detection}
 
-\item{clean_hvg}{clean up HVGs with basic regex}
+\item{sample_column}{a column in meatdata with sample or batch ids. defaults to NULL which means feature detection will not be batch aware}
+
+\item{remove_hvgs}{boolean. TRUE: use genes_to_remove to remove from HVGS}
+
+\item{genes_to_remove}{a vector with genes to exclude}
 
 \item{normalize_data}{normalize data with standard logNorm}
 
 \item{npcs_PCA}{how many pcs to save}
 
-\item{findClusters}{run neighbor and cluster detection with seurat standard}
-
 \item{calcUMAP}{calc standard seurat UMAP}
+
+\item{k.param}{k neighbors for UMAP and SNN}
+
+\item{findClusters}{run neighbor and cluster detection with seurat standard}
 
 \item{clusterRes}{resolution for clustering}
 
