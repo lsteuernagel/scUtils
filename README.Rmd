@@ -1,0 +1,53 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# scUtils
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+Single-cell utility functions by Lukas Steuernagel
+
+## Installation
+
+Install scUtils using:
+
+```{r}
+#devtools::install_github("lsteuernagel/scUtils")
+```
+
+Depends on Seurat, some tidyverse and other data management packages.
+
+## Function overview
+
+Load package:
+
+```{r}
+library(scUtils)
+```
+
+List of functions:
+
+```{r}
+sort(as.character(lsf.str("package:scUtils")))
+```
+
+Check the man pages for details!
+
+## Example
+
+Still need to add examples.
+
+
