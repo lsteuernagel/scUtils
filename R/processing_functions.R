@@ -105,7 +105,7 @@ seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 1000,sample_c
 
   if(!is.null(sample_column)){
     message("Find HVGs split by ",sample_column)
-    var_features = identify_variable_features(seurat_object,n_hvgs_sizes=nfeatures_vst*2,batch_var=sample_column,assay_name=assay,method="vst",ignore_genes_regex=NULL,returnSeurat=TRUE,seed=seed)
+    var_features = identify_variable_features(seurat_object,n_hvgs_sizes=nfeatures_vst*2,batch_var=sample_column,assay_name=assay,method="vst",ignore_genes_regex=NULL,returnSeurat=FALSE,seed=seed)
   }else{
     message("Find HVGs")
     seurat_object <- Seurat::FindVariableFeatures(object = seurat_object,assay=assay, selection.method = "vst", nfeatures = nfeatures_vst*2, verbose = F)
@@ -168,7 +168,7 @@ identify_variable_features = function(seurat_object,n_hvgs_sizes=1000,batch_var,
   Idents(seurat_object) <- batch_var
   seurat_object.list <- Seurat::SplitObject(seurat_object, split.by = batch_var)
   message("Finding shared variable features: ",hvg_genes)
-  split.features <- Seurat::SelectIntegrationFeatures(object.list = seurat_object.list, nfeatures = hvg_genes,fvf.nfeatures=hvg_genes,selection.method =method,assay=rep(assay_name,length(seurat_object.list)))
+  split.features <- Seurat::SelectIntegrationFeatures(object.list = seurat_object.list, nfeatures = hvg_genes,fvf.nfeatures=hvg_genes,selection.method =method,assay=rep(assay_name,length(seurat_object.list)),verbose=FALSE)
   if(!is.null(ignore_genes_regex)){split.features= split.features[!grepl(ignore_genes_regex,split.features)]}
   seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",hvg_genes)]] = split.features
 
