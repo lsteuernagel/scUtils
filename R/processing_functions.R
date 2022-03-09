@@ -121,7 +121,7 @@ seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 1000,sample_c
   # optional downstream:
   message("Run Scale and PCA")
   seurat_object <- Seurat::ScaleData(object = seurat_object,assay=assay,features = var_features, verbose = F)
-  seurat_object <- Seurat::RunPCA(object = seurat_object,assay=assay, npcs = npcs_PCA,reduction.name = key,reduction.key=key, verbose = F,seed.use = seed)
+  seurat_object <- Seurat::RunPCA(object = seurat_object,assay=assay, npcs = npcs_PCA,reduction.name = key,features = var_features,reduction.key=key, verbose = F,seed.use = seed)
   if(calcUMAP){
     message("Run Umap...")
     if(key=="pca"){umap_key="umap"}else{umap_key=paste0("umap_",key)}
@@ -163,11 +163,11 @@ identify_variable_features = function(seurat_object,n_hvgs_sizes=1000,batch_var,
   require(Seurat)
   # find features for largest set:
   hvg_genes = max(n_hvgs_sizes)
-  message("Splitting object by: ",batch_var)
+  #message("Splitting object by: ",batch_var)
   seurat_object@assays[[assay_name]]@var.features = character()
   Idents(seurat_object) <- batch_var
   seurat_object.list <- Seurat::SplitObject(seurat_object, split.by = batch_var)
-  message("Finding shared variable features: ",hvg_genes)
+  #message("Finding shared variable features: ",hvg_genes)
   split.features <- Seurat::SelectIntegrationFeatures(object.list = seurat_object.list, nfeatures = hvg_genes,fvf.nfeatures=hvg_genes,selection.method =method,assay=rep(assay_name,length(seurat_object.list)),verbose=FALSE)
   if(!is.null(ignore_genes_regex)){split.features= split.features[!grepl(ignore_genes_regex,split.features)]}
   seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",hvg_genes)]] = split.features
@@ -220,7 +220,7 @@ determine_cluster_resolution <- function(seurat_object,target_cluster_number,res
   seurat_object = Seurat::FindClusters(seurat_object,resolution = resolutions,graph.name = graph_name,random.seed =seed,verbose=FALSE,...)
   # identify res clostest to target
   n_clusters_per_res = apply(seurat_object@meta.data[,paste0(graph_name,"_res.",resolutions)],2,function(x,min_cells){length(table(x)[table(x)>min_cells])},min_cells=min_cells)
-  res_with_target_n = which(abs(n_clusters_per_res-target_cluster_number)== min(abs(n_clusters_per_res-target_cluster_number)))[1]
+  res_with_target_n = paste0(graph_name,"_res.",resolutions)[which(abs(n_clusters_per_res-target_cluster_number)== min(abs(n_clusters_per_res-target_cluster_number)))[1]]
   # return
   if(return_seurat){
     seurat_object@meta.data[,cluster_col_name] = seurat_object@meta.data[,res_with_target_n]
