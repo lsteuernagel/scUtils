@@ -133,7 +133,6 @@ seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 1000,sample_c
     seurat_object <- Seurat::FindClusters(seurat_object, resolution = clusterRes,verbose = F,random.seed = seed)
 
   }
-  message("umap name: ",umap_key)
   return(seurat_object)
 }
 
@@ -148,7 +147,8 @@ seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 1000,sample_c
 #' @param batch_var var to split by
 #' @param assay_name seurat object assay
 #' @param method which HVG method : selection.method from Seurat::FindVariableFeatures
-#' @param ignore_genes_regex  a regex o filter genes from HVGs
+#' @param ignore_genes_regex  a regex of genes to filter from HVGs
+#' @param ignore_genes_vector a character vector of genes to remove from HVGs
 #' @param returnSeurat return seurat
 #' @param seed random seed
 #'
@@ -158,11 +158,11 @@ seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 1000,sample_c
 #'
 #' @import Seurat
 
-identify_variable_features = function(seurat_object,n_hvgs_sizes=1000,batch_var,assay_name="RNA",method="vst",ignore_genes_regex=NULL,returnSeurat=TRUE,seed=123){
+identify_variable_features = function(seurat_object,n_hvgs_sizes=1000,batch_var,assay_name="RNA",method="vst",ignore_genes_regex=NULL,ignore_genes_vector =NULL,returnSeurat=TRUE,seed=123){
   require(data.table)
   require(Seurat)
-  # find features for largest set:
-  hvg_genes = max(n_hvgs_sizes)
+  # find features for largest set*1.5 (in case exclusion of genes happen):
+  hvg_genes = max(n_hvgs_sizes)*1.5
   #message("Splitting object by: ",batch_var)
   seurat_object@assays[[assay_name]]@var.features = character()
   Idents(seurat_object) <- batch_var
@@ -170,22 +170,18 @@ identify_variable_features = function(seurat_object,n_hvgs_sizes=1000,batch_var,
   #message("Finding shared variable features: ",hvg_genes)
   split.features <- Seurat::SelectIntegrationFeatures(object.list = seurat_object.list, nfeatures = hvg_genes,fvf.nfeatures=hvg_genes,selection.method =method,assay=rep(assay_name,length(seurat_object.list)),verbose=FALSE)
   if(!is.null(ignore_genes_regex)){split.features= split.features[!grepl(ignore_genes_regex,split.features)]}
-  seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",hvg_genes)]] = split.features
+  if(!is.null(ignore_genes_vector)){split.features= split.features[!split.features %in% ignore_genes_vector]}
+  #seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",hvg_genes)]] = split.features
 
-  # run for all set size (see params)
-  all_features = seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",max(n_hvgs_sizes))]]
+  # run for all set size: add to @misc slot
   for(i in 1:length(n_hvgs_sizes)){
-    hvg_genes = n_hvgs_sizes[i]
-    if(hvg_genes != max(n_hvgs_sizes)){
-      message("Setting shared variable features: ",hvg_genes)
-      seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",hvg_genes)]] = all_features[1:hvg_genes]
-    }
+    hvg_genes = min(length(split.features),n_hvgs_sizes[i])
+    seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",hvg_genes)]] = split.features[1:hvg_genes]
   }
-
   if(returnSeurat){
     return(seurat_object)
   }else{
-    return(seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",hvg_genes)]])
+    return(seurat_object@misc$var_features[[paste0(assay_name,".log.",method,".split_",batch_var,".features.",max(n_hvgs_sizes))]])
   }
 }
 
@@ -259,28 +255,33 @@ determine_cluster_resolution <- function(seurat_object,target_cluster_number,res
 #'
 
 apply_DoubletFinder <- function(seurat_object,npcs_PCA=50,pN_fixed=0.25,pK_max=NULL,doublet_formation_rate=0.075,adjust_nExp = FALSE, doublet_cluster_tresh =NULL,cluster_column="seurat_clusters",return_seurat=TRUE){
-
+message("test")
   # optional use of packages:
   if (!requireNamespace("DoubletFinder", quietly = TRUE)) {
     warning("The DoubletFinder package must be installed to use this function")
     return(NULL)
   }
   ## pK Identification (no ground-truth)
-  sweep.res.seurat_object <- DoubletFinder::paramSweep_v3(seurat_object, PCs = 1:npcs_PCA, sct = FALSE)
-  sweep.stats_seurat_object <- DoubletFinder::summarizeSweep(sweep.res.seurat_object, GT = FALSE)
-  bcmvn_seurat_object <- DoubletFinder::find.pK(sweep.stats_seurat_object)
-  pK_at_BCmetrci_max = as.numeric(as.character(bcmvn_seurat_object$pK[bcmvn_seurat_object$BCmetric == max(bcmvn_seurat_object$BCmetric)]))
-  if(!is.null(pK_max)){if(pK_at_BCmetrci_max > pK_max){pK_at_BCmetrci_max = pK_max}}
+  sweep.res.seurat_object <- invisible(suppressMessages(DoubletFinder::paramSweep_v3(seurat_object, PCs = 1:npcs_PCA, sct = FALSE)))
+  sweep.stats_seurat_object <- invisible(suppressMessages(DoubletFinder::summarizeSweep(sweep.res.seurat_object, GT = FALSE)))
+  bcmvn_seurat_object <- invisible(suppressMessages(DoubletFinder::find.pK(sweep.stats_seurat_object)))
+  bcmvn_seurat_object$BCmetric = as.numeric(as.character(bcmvn_seurat_object$BCmetric))
+  if(!is.null(pK_max)){
+    local_max = max(bcmvn_seurat_object$BCmetric[as.numeric(as.character(bcmvn_seurat_object$pK)) <= as.numeric(pK_max)])
+    pK_at_BCmetrci_max = as.numeric(as.character(bcmvn_seurat_object$pK[bcmvn_seurat_object$BCmetric == local_max][1]))
+  }else{
+    pK_at_BCmetrci_max = as.numeric(as.character(bcmvn_seurat_object$pK[bcmvn_seurat_object$BCmetric == max(bcmvn_seurat_object$BCmetric)][1]))
+  }
 
   ## Homotypic Doublet Proportion Estimate
   nExp_poi <- round(doublet_formation_rate*nrow(seurat_object@meta.data))
   if(adjust_nExp){
-    homotypic.prop <- DoubletFinder::modelHomotypic(seurat_object@meta.data[,cluster_column])
+    homotypic.prop <- invisible(suppressMessages(DoubletFinder::modelHomotypic(seurat_object@meta.data[,cluster_column])))
     nExp_poi <- round(nExp_poi*(1-homotypic.prop))
   }
 
   ## Run DoubletFinder
-  seurat_object <- DoubletFinder::doubletFinder_v3(seurat_object, PCs = 1:npcs_PCA, pN = pN_fixed, pK = pK_at_BCmetrci_max, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE)
+  seurat_object <- invisible(suppressMessages(DoubletFinder::doubletFinder_v3(seurat_object, PCs = 1:npcs_PCA, pN = pN_fixed, pK = pK_at_BCmetrci_max, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE)))
   reuse.pANN = paste0("pANN_",pN_fixed,"_",pK_at_BCmetrci_max,"_",nExp_poi)
   # final Doublet column:
   seurat_object@meta.data$Doublet = seurat_object@meta.data[,paste0("DF.classifications_",gsub("pANN_","",reuse.pANN))]

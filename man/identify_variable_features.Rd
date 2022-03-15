@@ -11,6 +11,7 @@ identify_variable_features(
   assay_name = "RNA",
   method = "vst",
   ignore_genes_regex = NULL,
+  ignore_genes_vector = NULL,
   returnSeurat = TRUE,
   seed = 123
 )
@@ -26,7 +27,9 @@ identify_variable_features(
 
 \item{method}{which HVG method : selection.method from Seurat::FindVariableFeatures}
 
-\item{ignore_genes_regex}{a regex o filter genes from HVGs}
+\item{ignore_genes_regex}{a regex of genes to filter from HVGs}
+
+\item{ignore_genes_vector}{a character vector of genes to remove from HVGs}
 
 \item{returnSeurat}{return seurat}
 
