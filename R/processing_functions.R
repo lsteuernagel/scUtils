@@ -76,7 +76,7 @@ ReadDGEFormat= function(dge, feature.column = 1){
 #' @param assay which assay
 #' @param nfeatures_vst number of features for HVG detection
 #' @param sample_column a column in meatdata with sample or batch ids. defaults to NULL which means feature detection will not be batch aware
-#' @param remove_hvgs  boolean. TRUE: use genes_to_remove to remove from HVGS
+#' @param remove_hvgs deprecated
 #' @param genes_to_remove a vector with genes to exclude
 #' @param normalize_data normalize data with standard logNorm
 #' @param npcs_PCA how many pcs to save
@@ -93,7 +93,7 @@ ReadDGEFormat= function(dge, feature.column = 1){
 #'
 #' @import Seurat
 
-seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 1000,sample_column = NULL,remove_hvgs = FALSE,genes_to_remove = character(0),normalize_data=TRUE,npcs_PCA = 50,calcUMAP=TRUE,k.param=20,findClusters =F,clusterRes = 1,key="pca",seed=123){
+seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 1000,sample_column = NULL,remove_hvgs = TRUE,genes_to_remove = character(0),normalize_data=TRUE,npcs_PCA = 50,calcUMAP=TRUE,k.param=20,findClusters =TRUE,clusterRes = 1,key="pca",seed=123){
   message("Running standard seurat recipe.")
   set.seed(seed)
   if(dim(seurat_object@assays[[assay]]@data)[2]==0){normalize_data=TRUE}
@@ -103,21 +103,26 @@ seurat_recipe = function(seurat_object,assay="RNA",nfeatures_vst = 1000,sample_c
     message("Warning: Skipping Normalization")
   }
 
+
+  # I always run the basic HVG detection:
+  message("Find HVGs")
+  seurat_object <- Seurat::FindVariableFeatures(object = seurat_object,assay=assay, selection.method = "vst", nfeatures = nfeatures_vst*2, verbose = F)
+  # var features
+  var_features = seurat_object@assays[[assay]]@var.features
+  var_features = var_features[!var_features %in% genes_to_remove] # remove problematic genes
+  var_features = var_features[1:nfeatures_vst] # subset to actual length
+  # then optionally re-run split by sample:
   if(!is.null(sample_column)){
     message("Find HVGs split by ",sample_column)
     var_features = identify_variable_features(seurat_object,n_hvgs_sizes=nfeatures_vst*2,batch_var=sample_column,assay_name=assay,method="vst",
                                               ignore_genes_regex=NULL,ignore_genes_vector=genes_to_remove,returnSeurat=FALSE,seed=seed)
-  }else{
-    message("Find HVGs")
-    seurat_object <- Seurat::FindVariableFeatures(object = seurat_object,assay=assay, selection.method = "vst", nfeatures = nfeatures_vst*2, verbose = F)
-    # var features
-    var_features = seurat_object@assays[[assay]]@var.features
+    var_features = var_features[1:nfeatures_vst] # subset to actual length
   }
-  # remove features:
-  if(remove_hvgs){
-    var_features = var_features[!var_features %in% genes_to_remove] # remove problematic genes
-  }
-  var_features = var_features[1:nfeatures_vst] # subset to actual length
+  # overwrite HVGS in seurat assay
+  seurat_object@assays[[assay]]@var.features = var_features
+  seurat_object@assays$RNA@meta.features$vst.variable = FALSE
+  seurat_object@assays$RNA@meta.features$vst.variable[rownames(seurat_object@assays$RNA@meta.features) %in% var_features] = TRUE
+  #seurat_object@assays[[assay]]@meta.features = var_features
 
   # optional downstream:
   message("Run Scale and PCA")
@@ -256,7 +261,7 @@ determine_cluster_resolution <- function(seurat_object,target_cluster_number,res
 #'
 
 apply_DoubletFinder <- function(seurat_object,npcs_PCA=50,pN_fixed=0.25,pK_max=NULL,doublet_formation_rate=0.075,adjust_nExp = FALSE, doublet_cluster_tresh =NULL,cluster_column="seurat_clusters",return_seurat=TRUE){
-message("test")
+  message("test")
   # optional use of packages:
   if (!requireNamespace("DoubletFinder", quietly = TRUE)) {
     warning("The DoubletFinder package must be installed to use this function")

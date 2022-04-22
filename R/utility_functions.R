@@ -181,10 +181,11 @@ gene_pct_cluster = function(seurat_object,genes,col_name,min_expression=0,return
   per_Cluster_pct = per_Cluster_occ / as.numeric(cluster_length)
   # return
   if(return_long){
+    colnames(per_Cluster_pct) = make.unique(colnames(per_Cluster_pct))
     per_Cluster_pct_long = as.data.frame(per_Cluster_pct) %>% dplyr::mutate(group = rownames(per_Cluster_pct)) %>% tidyr::gather(-group,key="gene",value="pct")
     return(per_Cluster_pct_long)
   }else{
-    return(per_Cluster_pct)
+    return(as.data.frame(per_Cluster_pct))
   }
 
 }

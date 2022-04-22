@@ -9,13 +9,13 @@ seurat_recipe(
   assay = "RNA",
   nfeatures_vst = 1000,
   sample_column = NULL,
-  remove_hvgs = FALSE,
+  remove_hvgs = TRUE,
   genes_to_remove = character(0),
   normalize_data = TRUE,
   npcs_PCA = 50,
   calcUMAP = TRUE,
   k.param = 20,
-  findClusters = F,
+  findClusters = TRUE,
   clusterRes = 1,
   key = "pca",
   seed = 123
@@ -30,7 +30,7 @@ seurat_recipe(
 
 \item{sample_column}{a column in meatdata with sample or batch ids. defaults to NULL which means feature detection will not be batch aware}
 
-\item{remove_hvgs}{boolean. TRUE: use genes_to_remove to remove from HVGS}
+\item{remove_hvgs}{deprecated}
 
 \item{genes_to_remove}{a vector with genes to exclude}
 
