@@ -314,4 +314,66 @@ apply_DoubletFinder <- function(seurat_object,npcs_PCA=50,pN_fixed=0.25,pK_max=N
 }
 
 
+##########
+### feature_statistics
+##########
 
+#' Calculate mean and pct of features (genes) in seurat objects in a flexible manner
+#'
+#' Similar to Seurat's calculation of summary statistics for FindMarkers
+#'
+#' @param object seurat object
+#' @param features which features to check. Will ignore non-existent features. Defaults to NULL which means all features.
+#' @param cells which cells to subset the object to before calculating statistics. Will ignore non-existent cell names. Defaults to NULL which means all cells.
+#' @param assay seurat assay to pull data from. Defaults to 'RNA'
+#' @param slot slot in assay to use. Defaults to 'data'
+#' @param thresh.min min expression of a feature to be considered for percentage calculation
+#' @param digits how many digits for rounding the results
+#' @param result_colnames  how to name the columns in the results. Defaults to c("gene", "mean", "pct")
+#'
+#' @return data frame with one row per feature and 3 columns
+#'
+#' @export
+#'
+#' @import SeuratObject
+#'
+
+feature_statistics = function(object,features=NULL,cells =NULL,assay = "RNA",slot="data",thresh.min=0,digits=3,result_colnames =  c("gene", "mean", "pct")){
+
+  # get matrix
+  matrix_to_work_with = SeuratObject::GetAssayData(object@assays[[assay]],slot = slot)
+
+  # check features
+  if(is.null(features)){
+    features = rownames(matrix_to_work_with)
+  }else{
+    features = features[features %in% rownames(matrix_to_work_with)]
+    if(length(features)<1){
+      stop("Please provide at least one valid feature or set features to NULL to use all features in object.")
+    }
+  }
+  # check cells
+  if(is.null(cells)){
+    cells = colnames(matrix_to_work_with)
+  }else{
+    cells = cells[cells %in% colnames(matrix_to_work_with)]
+    if(length(cells)<1){
+      stop("Please provide at least one valid cell name or set cells to NULL to use all cells in object.")
+    }
+  }
+
+  # calculate percentage
+  pct_res <- round(
+    x = rowSums(x = matrix_to_work_with[features, cells,drop=FALSE] > thresh.min) / length(x = cells),
+    digits = digits
+  )
+  # calculate mean
+  mean_res <- round(
+    x = rowMeans(matrix_to_work_with[features, cells,drop=FALSE]),
+    digits = digits
+  )
+  # summarise and return
+  expression_stats <- data.frame(features,mean_res, pct_res)
+  colnames(expression_stats) <- result_colnames
+  return(expression_stats)
+}
