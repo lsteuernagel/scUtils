@@ -92,6 +92,30 @@ writeList_to_JSON = function(list_with_rows,filename){
   writeLines(jsonfile,con = paste0(filename))
 }
 
+##########
+### find_children
+##########
+
+#' Recursively walk through edgelist and return children of specified node(s).
+#'
+#' @param nodes vector of node(s) present in edges for which all children will be determined
+#' @param edges edgelist with two columns: 'to' and 'from'
+#'
+#' @return vector with children ids
+#'
+#' @export
+#'
+
+find_children = function(nodes,edges){
+  current_children = edges$to[edges$from %in% nodes]
+  #print(paste0(current_children,collapse = "|"))
+  if(length(current_children)>0){
+    all_children = c(current_children,find_children(current_children,edges))
+  }else{
+    all_children = current_children
+  }
+  return(all_children)
+}
 
 ##########
 ### downsample_balanced_iterative
