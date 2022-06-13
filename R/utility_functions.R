@@ -213,3 +213,49 @@ gene_pct_cluster = function(seurat_object,genes,col_name,min_expression=0,return
   }
 
 }
+
+##########
+### CalculateMultScore
+##########
+
+#' Calculate a gene set score for each cell in a Seurat object based on teh product (if one gene is missing the score will be zero)
+#'
+#' Useful for highlighting all cells that express two or three genes together.
+#' Scores for longer gene sets will likely be zero, but the allowed_zeros(pct) argument can be used to allow a certain number of zeros (and calculation of the product only on the other non-zero genes).
+#'
+#' @param seurat_object seurat object
+#' @param features which genes to calculate score on
+#' @param cells subset to tehses cells (defaults to NULL which emans all)
+#' @param allowed_zeros how many zeros (integer) are allowed (will be ignored when calculating product)
+#' @param allowed_zeros_pct how many zeros (pct of number of features) are allowed. Number between 0 and 1. Rounded with floor. If larger than 0 this will overwrite allowed_zeros
+#'
+#' @return a numeric vector with scores per cell in seurat_object
+#'
+#' @export
+#'
+#' @importFrom Seurat FetchData
+
+## with normalization:
+CalculateMultScore = function(seurat_object,features,cells=NULL,allowed_zeros = 0,allowed_zero_pct = 0){
+  gene_data = Seurat::FetchData(seurat_object,vars = features,cells = cells)
+  if(allowed_zero_pct > 0){
+    allowed_zeros = floor(ncol(gene_data) * max(1,allowed_zero_pct))
+  }
+  if(allowed_zeros == 0){
+    multScore = apply(gene_data,1,prod)
+    multScore = multScore^(1/ncol(gene_data)) # normalize
+  }else{
+    multScore = apply(gene_data,1,function(x,subtr){
+      zero_idx = which(x == 0) # get all zeros
+      # decide which ones to drop (maybe not all)
+      if(length(zero_idx)>subtr){
+        drop_idx = zero_idx[(length(zero_idx)-subtr+1):length(zero_idx)]
+      }else{
+        drop_idx = zero_idx
+      }
+      y = x[!drop_idx] # exclude subtr zeros from vector
+      z = prod(y)^(1/length(y)) # normalize
+    },subtr=allowed_zeros)
+  }
+  return(multScore)
+}
