@@ -253,7 +253,7 @@ CalculateMultScore = function(seurat_object,features,cells=NULL,allowed_zeros = 
       }else{
         drop_idx = zero_idx
       }
-      y = x[!drop_idx] # exclude subtr zeros from vector
+      y = x[-drop_idx] # exclude subtr zeros from vector
       z = prod(y)^(1/length(y)) # normalize
     },subtr=allowed_zeros)
   }
