@@ -259,3 +259,83 @@ CalculateMultScore = function(seurat_object,features,cells=NULL,allowed_zeros = 
   }
   return(multScore)
 }
+
+##########
+### conserved_correlations
+##########
+
+#' Calculate correlation between features and all other genes in a seurat object per dataset
+#'
+#' If batch effects occur (or per cluster correlations are desired), one correlation value per group can be calculated.
+#' Uses the proxyC library, any valid method can be provided
+#'
+#' @param seurat_object seurat object
+#' @param slot which slot to pull data from
+#' @param assay which assay
+#' @param features which genes to calculate correlation with
+#' @param conserve_col column name from seurat_object meta.data
+#' @param min_cells show many cells at least to calculate correlation for group
+#' @param method valid method passed to proxyC::simil
+#'
+#' @return a list of matrices (one per gene in features) with rows as genes and columns as categories of conserve_col
+#'
+#' @export
+#'
+#' @importFrom Seurat FetchData
+#' @importFrom SeuratObject GetAssayData
+#'
+
+
+conserved_correlations = function(seurat_object,slot="data",assay="RNA",features,conserve_col="Dataset",min_cells = 20,method="correlation"){
+
+  # optional use of packages:
+  if (!requireNamespace("proxyC", quietly = TRUE)) {
+    warning("The proxyC package must be installed to use this function")
+    return(NULL)
+  }
+
+  # get matrix
+  DefaultAssay(seurat_object) = assay
+  expr_matrix = SeuratObject::GetAssayData(seurat_object,slot = slot)
+
+  #subset featres
+  features = features[features %in% rownames(expr_matrix)]
+  if(length(features) < 1){stop("Cannot find features in matrix.")}
+
+  # get categories
+  all_categories = unique(seurat_object@meta.data[,conserve_col])
+
+  # iterate over all categries (e.g. Datasets) and aclaculate correlation
+  category_cor_list = list()
+  for( cat in all_categories){
+    cells_from_Cat = rownames(seurat_object@meta.data)[seurat_object@meta.data[,conserve_col] == cat]
+    if(length(cells_from_Cat) >= min_cells ){
+      expr_matrix_cat = expr_matrix[,cells_from_Cat]
+      #correlation_cat = proxyC::simil(expr_matrix_cat,y=as(as.matrix(t(expr_matrix_cat[features,])),"dgCMatrix"),margin = 1,method=method)
+      correlation_cat = suppressWarnings(proxyC::simil(expr_matrix_cat,y=expr_matrix_cat[features,,drop=FALSE],margin = 1,method=method))
+      correlation_cat =  as.matrix(correlation_cat)
+      category_cor_list[[cat]] = correlation_cat
+    }
+  }
+
+  # extract feature per dataset and bin in one matrix
+  all_feature_matrices = list()
+  for(feature in features){
+    feature_matrix = sapply(category_cor_list,function(x,feature){x[,feature]},feature=feature)
+    feature_matrix = feature_matrix[,colSums(feature_matrix) != 0]
+    all_feature_matrices[[feature]] = feature_matrix
+  }
+
+  # return
+  if(length(all_feature_matrices) == 1){
+    return(all_feature_matrices[[1]])
+  }else{
+    return(all_feature_matrices)
+  }
+}
+
+
+
+
+
+
