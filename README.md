@@ -13,7 +13,9 @@ Single-cell utility functions by Lukas Steuernagel
 Install scUtils using:
 
 ``` r
-#devtools::install_github("lsteuernagel/scUtils")
+if (!require("remotes", quietly = TRUE))
+    install.packages("remotes")
+remotes::install_github("lsteuernagel/scUtils")
 ```
 
 Depends on Seurat, some tidyverse and other data management packages.
@@ -30,16 +32,18 @@ List of functions:
 
 ``` r
 sort(as.character(lsf.str("package:scUtils")))
-#>  [1] "apply_DoubletFinder"           "determine_cluster_resolution" 
-#>  [3] "downsample_balanced_iterative" "gene_pct_cluster"             
-#>  [5] "identify_variable_features"    "infer_sex"                    
-#>  [7] "match_sample_names"            "rasterize_ggplot"             
-#>  [9] "Read10xFormat"                 "ReadDGEFormat"                
-#> [11] "seurat_recipe"                 "writeList_to_JSON"
+#>  [1] "apply_DoubletFinder"           "CalculateMultScore"           
+#>  [3] "conserved_correlations"        "determine_cluster_resolution" 
+#>  [5] "downsample_balanced_iterative" "feature_statistics"           
+#>  [7] "find_children"                 "gene_pct_cluster"             
+#>  [9] "identify_variable_features"    "infer_sex"                    
+#> [11] "match_sample_names"            "rasterize_ggplot"             
+#> [13] "Read10xFormat"                 "ReadDGEFormat"                
+#> [15] "seurat_recipe"                 "writeList_to_JSON"
 ```
 
 Check the man pages for details!
 
-## Example
+## Examples
 
-Still need to add examples.
+Still need to add examples…

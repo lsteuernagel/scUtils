@@ -24,8 +24,10 @@ Single-cell utility functions by Lukas Steuernagel
 
 Install scUtils using:
 
-```{r}
-#devtools::install_github("lsteuernagel/scUtils")
+```r
+if (!require("remotes", quietly = TRUE))
+    install.packages("remotes")
+remotes::install_github("lsteuernagel/scUtils")
 ```
 
 Depends on Seurat, some tidyverse and other data management packages.
@@ -46,8 +48,8 @@ sort(as.character(lsf.str("package:scUtils")))
 
 Check the man pages for details!
 
-## Example
+## Examples
 
-Still need to add examples.
+Still need to add examples...
 
 
