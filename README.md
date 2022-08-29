@@ -6,7 +6,7 @@
 <!-- badges: start -->
 <!-- badges: end -->
 
-Single-cell utility functions by Lukas Steuernagel
+Single-cell utility functions
 
 ## Installation
 
@@ -43,7 +43,3 @@ sort(as.character(lsf.str("package:scUtils")))
 ```
 
 Check the man pages for details!
-
-## Examples
-
-Still need to add examples…
