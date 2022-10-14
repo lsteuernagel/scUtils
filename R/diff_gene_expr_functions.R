@@ -1,0 +1,232 @@
+# functions for multi-subject differential gene expression based on nebula:
+# https://github.com/lhe17/nebula
+# https://www.nature.com/articles/s42003-021-02146-6
+
+
+##########
+### function: run_nebula
+##########
+
+#' Apply nebula on input data
+#'
+#' Wrapper around model.matrix, nebula::group_cell, nebula::nebula
+#'
+#' requires nebula and Rfast to be installed : https://github.com/lhe17/nebula
+#'
+#' @param counts count matrix Dgc
+#' @param metadata ...
+#' @param formula_string ...
+#' @param subject_id ...
+#' @param cell_id ...
+#' @param cell_size ...
+#'
+#' @return nebula output list
+#'
+#' @export
+#'
+#' @importFrom stats model.matrix as.formula
+#' @importFrom Matrix colSums
+
+run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id = "Subject_ID",cell_id="Cell_ID",cell_size = NULL){
+
+  # optional use of packages:
+  if (!requireNamespace("nebula", quietly = TRUE)) {
+    warning("The nebula package must be installed to use this function")
+    return(NULL)
+  }
+
+  # handle cell_size
+  if(is.null(cell_size)){
+    cell_size = Matrix::colSums(counts)
+  }
+  if(is.character(cell_size) & length(cell_size)){
+    if(! cell_size %in% colnames(metadata)){
+      stop("when providing a string for cell_size, it must be a column name of metadata.")
+    }else{
+      cell_size = metadata[,cell_size]
+    }
+  }
+  if(is.numeric(cell_size)){
+    if(length(cell_size) != ncol(counts)){
+      stop("When providing a numeric vector for cell_size, it must have the same length as ncol(counts).")
+    }
+  }
+
+  # make designamtix
+  design_matrix = stats::model.matrix(stats::as.formula(formula_string), metadata)
+
+  # prepare input
+  input_list = list(
+    count = counts,
+    id = metadata[,subject_id],
+    pred = design_matrix,
+    offset = cell_size
+  )
+  # ensure right order:
+  group_result = nebula::group_cell(input_list$count, input_list$id, input_list$pred, input_list$offset )
+  if(!is.null(group_result)){input_list = group_result}
+  # run nebula
+  nebula_results = nebula::nebula(input_list$count, input_list$id, input_list$pred, input_list$offset)
+  # return results
+  return( nebula_results)
+}
+
+##########
+### function: FindDEG_nebula
+##########
+
+#' Run nebula on an seurat object with condition(s) and multiple subjects
+#'
+#' Wrapper around run_nebula to execute it for all clusters.
+#'
+#' requires nebula and Rfast to be installed : https://github.com/lhe17/nebula
+#' Requires doParallel and foreach to be installed
+#'
+#' @param seurat_object a seurat object with all required metadata
+#' @param cluster_variable column name in seurat meta.data with the clusters
+#' @param sample_variable column name in seurat meta.data with the subject or sample id
+#' @param primary_variable column name in seurat meta.data with the main variable to compare (condition, treatment etc.)
+#' @param other_variables column names in seurat meta.data with other relevant variables to include in nebula model
+#' @param features subset to these features (speeds up!). NULL means use all features. Additionally nebula's default setting for lowly expressed gene removal is applied.
+#' @param nCounts column name in seurat meta.data with the scaling factor ("offset" in nebula). Can be NULL if all features are used. Then the scaling factor is the total counts number.
+#' @param min_cells number of cells (in currently evaluated cluster) for a sample to be valid
+#' @param min_pct_valid_samples how many valid samples have to be in cluster in order to include this cluster. 0.5 means 50% of samples must have at least min_cells in the cluster. Set this to 1 to requires all samples to have min_cells.
+#' @param assay "RNA" or other assay from seurat object
+#' @param padjust_method defaults to "fdr" . directly passed to stats::p.adjust
+#' @param return_full_result return only marker table or list with all nebula outputs
+#' @param numCores number of cores used by foreach
+#' @param verbose whether to print verbose messages
+#'
+#' @return dataframe with DEGs or list with dataframe and list off full nebula results depending on return_full_result
+#'
+#' @export
+#'
+#' @importFrom Seurat SplitObject
+#' @importFrom stats p.adjust
+
+FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sample_variable="Sample_ID",primary_variable="Condition",other_variables=c(),features = NULL,nCounts=NULL,min_cells=5,min_pct_valid_samples = 0.5,assay="RNA",padjust_method="fdr",return_full_result = TRUE,numCores = 1,verbose=TRUE){
+
+  # optional use of packages:
+  if (!requireNamespace("nebula", quietly = TRUE)) {
+    warning("The nebula package must be installed to use this function")
+    return(NULL)
+  }
+  # optional use of packages:
+  if (!requireNamespace("foreach", quietly = TRUE)) {
+    warning("The foreach package must be installed to use this function")
+    return(NULL)
+  }
+
+  # optional use of packages:
+  if (!requireNamespace("doParallel", quietly = TRUE)) {
+    warning("The doParallel package must be installed to use this function")
+    return(NULL)
+  }
+
+  # check that input and parameters are valid
+  if(! cluster_variable %in%  colnames(seurat_object@meta.data)){
+   stop("Cannot find cluster_variable: '",cluster_variable,"' in meta.data.")
+  }
+  if(! sample_variable %in%  colnames(seurat_object@meta.data)){
+    stop("Cannot find sample_variable: '",sample_variable,"' in meta.data.")
+  }
+  if(! primary_variable %in%  colnames(seurat_object@meta.data)){
+    stop("Cannot find primary_variable: '",primary_variable,"' in meta.data.")
+  }
+  if(! all(other_variables %in%  colnames(seurat_object@meta.data))){
+    stop("Cannot find one or more of the other_variables in meta.data.")
+  }
+
+  # check nCounts
+  if(!is.null(nCounts)){
+    if(is.character(nCounts) & length(nCounts)==1){
+      if(nCounts %in% colnames(seurat_object@meta.data)){
+        # do nothing
+        #nCounts = seurat_object@meta.data[,nCounts]
+      }else{
+        nCounts = NULL
+      }
+    }
+  }
+  # check features
+  if(!is.null(features)){
+    features = features[features %in% rownames(seurat_object@assays[[assay]]@counts)]
+    if(is.null(nCounts)){
+      if("nCount_RNA" %in% colnames(seurat_object@meta.data)){
+        nCounts = "nCount_RNA"#seurat_object@meta.data[,"nCount_RNA"]
+      }else{
+        stop("When subsetting features, please provide a valid meta.data column with library/cell sizes via nCounts.")
+      }
+    }
+  }else{
+    features = rownames(seurat_object@assays[[assay]]@counts)
+  }
+
+  # split object
+  if(verbose){message("Using ",length(features)," features.")}
+  if(verbose){message("Splitting seurat object by ",cluster_variable)}
+  seurat_object_list = Seurat::SplitObject(seurat_object, split.by = cluster_variable)
+  savelength = length(seurat_object_list)
+  # prefilter seurat list
+  pct_valid_sample_list = sapply(seurat_object_list,function(x,primary_variable,min_cells,min_pct_valid_samples){
+    # how many samples have more than min cell in subset
+    pct_valid_samples = length(which(table(x@meta.data[,primary_variable]) >= min_cells)) / length(unique(x@meta.data[,primary_variable]))
+    return(pct_valid_samples)
+  },primary_variable,min_cells,min_pct_valid_samples)
+  seurat_object_list = seurat_object_list[pct_valid_sample_list >= min_pct_valid_samples]
+  if(verbose){message("Split seurat into ",length(seurat_object_list)," objects (removed: ",savelength-length(seurat_object_list)," with too few cells)")}
+
+  # NEBULA
+  if(verbose){message("Running NEBULA in parallel on object list using ",min(numCores,length(seurat_object_list))," cores.")}
+
+  # register cores
+  doParallel::registerDoParallel(numCores)  # use multicore, set to the number of our cores
+  `%dopar%` = foreach::`%dopar%`
+  # run in parallel: I pass errors to be able to set the names of the result list afterwards
+  nebula_result_list <- foreach::foreach(subset_seurat_object = seurat_object_list,.errorhandling = "pass",.verbose=FALSE) %dopar% {
+    message(subset_seurat_object@project.name)
+    # prepare input
+    subset_metadata = subset_seurat_object@meta.data[,c(sample_variable,primary_variable,other_variables,nCounts),drop=FALSE]
+    subset_metadata$Cell_ID = rownames(subset_metadata)
+    subset_counts = subset_seurat_object@assays[[assay]]@counts[features,]
+    subset_formula = paste0("~ ",paste0(primary_variable,paste0(other_variables,collapse = " + "),collapse = " + "))
+    # run nebula
+    nebula_res = run_nebula(counts = subset_counts,
+                            metadata = subset_metadata,
+                            formula = subset_formula,
+                            subject_id = sample_variable,
+                            cell_id="Cell_ID",
+                            cell_size = nCounts)
+
+    # result
+    nebula_res
+
+  }
+  names(nebula_result_list) = names(seurat_object_list)
+  if(verbose){message("Finalized NEBULA. Returning results.")}
+  # convert nebula results
+  deg_dataframe_list = sapply(names(nebula_result_list),function(cluster_name,nebula_res_list,primary_variable){
+    current_res = nebula_res_list[[cluster_name]]
+    if(length(current_res) >= 5){
+      marker_summary = current_res$summary[,c("gene"),drop=FALSE]
+      marker_summary$cluster = cluster_name
+      marker_summary = as.data.frame(cbind(marker_summary,current_res$summary[,colnames(current_res$summary)[grepl(primary_variable,colnames(current_res$summary))]]))
+      if(length(colnames(current_res$summary)[grepl(paste0("p_",primary_variable),colnames(current_res$summary))]) == 1){
+        marker_summary$padj = stats::p.adjust(p = marker_summary[,colnames(current_res$summary)[grepl(paste0("p_",primary_variable),colnames(current_res$summary))]],method = padjust_method)
+      }
+    }else{
+      marker_summary=NULL
+    }
+    marker_summary
+  },nebula_res_list = nebula_result_list,primary_variable=primary_variable,simplify = FALSE)
+
+  # return
+  deg_dataframe = as.data.frame(do.call(rbind,deg_dataframe_list))
+
+  if(return_full_result){
+    return_list = list(degs = deg_dataframe, nebula_result_list = nebula_result_list)
+  }else{
+    return_list=degs
+  }
+  return(return_list)
+}

@@ -35,11 +35,12 @@ sort(as.character(lsf.str("package:scUtils")))
 #>  [1] "apply_DoubletFinder"           "CalculateMultScore"           
 #>  [3] "conserved_correlations"        "determine_cluster_resolution" 
 #>  [5] "downsample_balanced_iterative" "feature_statistics"           
-#>  [7] "find_children"                 "gene_pct_cluster"             
-#>  [9] "identify_variable_features"    "infer_sex"                    
-#> [11] "match_sample_names"            "rasterize_ggplot"             
-#> [13] "Read10xFormat"                 "ReadDGEFormat"                
-#> [15] "seurat_recipe"                 "writeList_to_JSON"
+#>  [7] "find_children"                 "FindDEG_nebula"               
+#>  [9] "gene_pct_cluster"              "identify_variable_features"   
+#> [11] "infer_sex"                     "match_sample_names"           
+#> [13] "rasterize_ggplot"              "Read10xFormat"                
+#> [15] "ReadDGEFormat"                 "run_nebula"                   
+#> [17] "seurat_recipe"                 "writeList_to_JSON"
 ```
 
 Check the man pages for details!
