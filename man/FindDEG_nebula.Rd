@@ -9,6 +9,7 @@ FindDEG_nebula(
   cluster_variable = "seurat_clusters",
   sample_variable = "Sample_ID",
   primary_variable = "Condition",
+  reference_level = "control",
   other_variables = c(),
   features = NULL,
   nCounts = NULL,
@@ -18,7 +19,8 @@ FindDEG_nebula(
   padjust_method = "fdr",
   return_full_result = TRUE,
   numCores = 1,
-  verbose = TRUE
+  verbose = TRUE,
+  ...
 )
 }
 \arguments{
@@ -29,6 +31,8 @@ FindDEG_nebula(
 \item{sample_variable}{column name in seurat meta.data with the subject or sample id}
 
 \item{primary_variable}{column name in seurat meta.data with the main variable to compare (condition, treatment etc.)}
+
+\item{reference_level}{character string. which level of the primary_variable should be the reference in the model}
 
 \item{other_variables}{column names in seurat meta.data with other relevant variables to include in nebula model}
 
@@ -49,6 +53,8 @@ FindDEG_nebula(
 \item{numCores}{number of cores used by foreach}
 
 \item{verbose}{whether to print verbose messages}
+
+\item{...}{further params passed directly to nebula::nebula}
 }
 \value{
 dataframe with DEGs or list with dataframe and list off full nebula results depending on return_full_result

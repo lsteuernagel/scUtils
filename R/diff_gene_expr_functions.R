@@ -19,6 +19,7 @@
 #' @param subject_id ...
 #' @param cell_id ...
 #' @param cell_size ...
+#' @param ... further params passed directly to nebula
 #'
 #' @return nebula output list
 #'
@@ -27,7 +28,7 @@
 #' @importFrom stats model.matrix as.formula
 #' @importFrom Matrix colSums
 
-run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id = "Subject_ID",cell_id="Cell_ID",cell_size = NULL){
+run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id = "Subject_ID",cell_id="Cell_ID",cell_size = NULL,...){
 
   # optional use of packages:
   if (!requireNamespace("nebula", quietly = TRUE)) {
@@ -66,7 +67,7 @@ run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id
   group_result = nebula::group_cell(input_list$count, input_list$id, input_list$pred, input_list$offset )
   if(!is.null(group_result)){input_list = group_result}
   # run nebula
-  nebula_results = nebula::nebula(input_list$count, input_list$id, input_list$pred, input_list$offset)
+  nebula_results = nebula::nebula(input_list$count, input_list$id, input_list$pred, input_list$offset,...)
   # return results
   return( nebula_results)
 }
@@ -86,6 +87,7 @@ run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id
 #' @param cluster_variable column name in seurat meta.data with the clusters
 #' @param sample_variable column name in seurat meta.data with the subject or sample id
 #' @param primary_variable column name in seurat meta.data with the main variable to compare (condition, treatment etc.)
+#' @param reference_level character string. which level of the primary_variable should be the reference in the model
 #' @param other_variables column names in seurat meta.data with other relevant variables to include in nebula model
 #' @param features subset to these features (speeds up!). NULL means use all features. Additionally nebula's default setting for lowly expressed gene removal is applied.
 #' @param nCounts column name in seurat meta.data with the scaling factor ("offset" in nebula). Can be NULL if all features are used. Then the scaling factor is the total counts number.
@@ -96,6 +98,7 @@ run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id
 #' @param return_full_result return only marker table or list with all nebula outputs
 #' @param numCores number of cores used by foreach
 #' @param verbose whether to print verbose messages
+#' @param ... further params passed directly to nebula::nebula
 #'
 #' @return dataframe with DEGs or list with dataframe and list off full nebula results depending on return_full_result
 #'
@@ -104,7 +107,7 @@ run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id
 #' @importFrom Seurat SplitObject
 #' @importFrom stats p.adjust
 
-FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sample_variable="Sample_ID",primary_variable="Condition",other_variables=c(),features = NULL,nCounts=NULL,min_cells=5,min_pct_valid_samples = 0.5,assay="RNA",padjust_method="fdr",return_full_result = TRUE,numCores = 1,verbose=TRUE){
+FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sample_variable="Sample_ID",primary_variable="Condition",reference_level="control",other_variables=c(),features = NULL,nCounts=NULL,min_cells=5,min_pct_valid_samples = 0.5,assay="RNA",padjust_method="fdr",return_full_result = TRUE,numCores = 1,verbose=TRUE,...){
 
   # optional use of packages:
   if (!requireNamespace("nebula", quietly = TRUE)) {
@@ -125,7 +128,7 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
 
   # check that input and parameters are valid
   if(! cluster_variable %in%  colnames(seurat_object@meta.data)){
-   stop("Cannot find cluster_variable: '",cluster_variable,"' in meta.data.")
+    stop("Cannot find cluster_variable: '",cluster_variable,"' in meta.data.")
   }
   if(! sample_variable %in%  colnames(seurat_object@meta.data)){
     stop("Cannot find sample_variable: '",sample_variable,"' in meta.data.")
@@ -189,14 +192,27 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
     subset_metadata = subset_seurat_object@meta.data[,c(sample_variable,primary_variable,other_variables,nCounts),drop=FALSE]
     subset_metadata$Cell_ID = rownames(subset_metadata)
     subset_counts = subset_seurat_object@assays[[assay]]@counts[features,]
-    subset_formula = paste0("~ ",paste0(primary_variable,paste0(other_variables,collapse = " + "),collapse = " + "))
+    # reorder
+    if(reference_level %in% subset_seurat_object@meta.data[,primary_variable] ){
+      level_order = c(reference_level,unique(subset_metadata[,primary_variable])[unique(subset_metadata[,primary_variable]) != reference_level])
+      # reorder metadata
+      subset_metadata = subset_metadata[order(match(subset_metadata[,primary_variable], level_order)),]
+      subset_metadata[,primary_variable] = factor(subset_metadata[,primary_variable],levels = level_order) # this is the most important one because stats::model.matrix uses this !
+      # change counts to metadata order
+      subset_counts = subset_counts[,match(rownames(subset_metadata),colnames(subset_counts))]
+    }
+    if(length(other_variables) > 0){
+      subset_formula = paste0("~ ",paste0(primary_variable," + ",paste0(other_variables,collapse = " + ")))
+    }else{
+      subset_formula = paste0("~ ",paste0(primary_variable))
+    }
     # run nebula
     nebula_res = run_nebula(counts = subset_counts,
                             metadata = subset_metadata,
                             formula = subset_formula,
                             subject_id = sample_variable,
                             cell_id="Cell_ID",
-                            cell_size = nCounts)
+                            cell_size = nCounts,...)
 
     # result
     nebula_res
@@ -221,7 +237,14 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
   },nebula_res_list = nebula_result_list,primary_variable=primary_variable,simplify = FALSE)
 
   # return
-  deg_dataframe = as.data.frame(do.call(rbind,deg_dataframe_list))
+  deg_dataframe <- tryCatch({
+    deg_dataframe = as.data.frame(do.call(rbind,deg_dataframe_list))
+    deg_dataframe
+  },
+  error=function(cond) {
+    message("Cannot rbind dataframes. Error:",cond)
+    return(NULL)
+  })
 
   if(return_full_result){
     return_list = list(degs = deg_dataframe, nebula_result_list = nebula_result_list)

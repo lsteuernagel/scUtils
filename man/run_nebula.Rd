@@ -10,7 +10,8 @@ run_nebula(
   formula_string = "~ treatment",
   subject_id = "Subject_ID",
   cell_id = "Cell_ID",
-  cell_size = NULL
+  cell_size = NULL,
+  ...
 )
 }
 \arguments{
@@ -25,6 +26,8 @@ run_nebula(
 \item{cell_id}{...}
 
 \item{cell_size}{...}
+
+\item{...}{further params passed directly to nebula}
 }
 \value{
 nebula output list
