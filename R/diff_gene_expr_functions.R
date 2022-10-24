@@ -227,9 +227,9 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
       marker_summary = current_res$summary[,c("gene"),drop=FALSE]
       marker_summary$cluster = cluster_name
       marker_summary = as.data.frame(cbind(marker_summary,current_res$summary[,colnames(current_res$summary)[grepl(primary_variable,colnames(current_res$summary))]]))
-      if(length(colnames(current_res$summary)[grepl(paste0("p_",primary_variable),colnames(current_res$summary))]) == 1){
-        marker_summary$padj = stats::p.adjust(p = marker_summary[,colnames(current_res$summary)[grepl(paste0("p_",primary_variable),colnames(current_res$summary))]],method = padjust_method)
-      }
+      # if(length(colnames(current_res$summary)[grepl(paste0("p_",primary_variable),colnames(current_res$summary))]) == 1){
+      #   marker_summary$padj = stats::p.adjust(p = marker_summary[,colnames(current_res$summary)[grepl(paste0("p_",primary_variable),colnames(current_res$summary))]],method = padjust_method)
+      # }
     }else{
       marker_summary=NULL
     }
@@ -238,7 +238,7 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
 
   # return
   deg_dataframe <- tryCatch({
-    deg_dataframe = as.data.frame(do.call(rbind,deg_dataframe_list))
+    deg_dataframe = as.data.frame(do.call(dplyr::bind_rows,deg_dataframe_list))
     deg_dataframe
   },
   error=function(cond) {
