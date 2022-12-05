@@ -200,6 +200,9 @@ gene_pct_cluster = function(seurat_object,genes,col_name,min_expression=0,return
   group_factor = seurat_object@meta.data[,col_name]
   # calc pct
   gene_expr[gene_expr > min_expression] <- 1 # set to 1 for occ
+  if(min_expression > 0){
+    gene_expr[gene_expr < 1] <- 0
+  }
   cluster_length = table(group_factor)
   per_Cluster_occ=apply(gene_expr,2,function(x,group_factor){tapply(x,INDEX=group_factor,FUN=sum)},group_factor = group_factor)
   per_Cluster_pct = per_Cluster_occ / as.numeric(cluster_length)
