@@ -27,5 +27,5 @@ convert_species_seurat(
 species converted seurat object (see also add_as_assay)
 }
 \description{
-At the moment works only with gene names (smybols). Not Ids.
+At the moment works only with gene names (symbols). Not Ids.
 }

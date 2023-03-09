@@ -1,17 +1,17 @@
 Package: scUtils
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: Functions for single cell data analysis
+Version: 0.0.1
 Authors@R: 
-    person(given = "First",
-           family = "Last",
+    person(given = "Lukas",
+           family = "Steuernagel",
            role = c("aut", "cre"),
            email = "first.last@example.com",
            comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: What the package does (one paragraph).
+Description: Singel cell data analysis
 License: MIT + file LICENSE
 Imports: Seurat, SeuratObject, dplyr, tidyr, jsonlite, Matrix, ggplot2, rlang, data.table, methods
-Suggests: SeuratDisk, DoubletFinder, scattermore, proxyC
+Suggests: SeuratDisk, DoubletFinder, scattermore, proxyC, doParallel, foreach, nebula
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.1.2
+RoxygenNote: 7.2.3

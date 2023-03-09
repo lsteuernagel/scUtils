@@ -15,6 +15,7 @@ FindDEG_nebula(
   nCounts = NULL,
   min_cells = 5,
   min_pct_valid_samples = 0.5,
+  min_pct = 0.05,
   assay = "RNA",
   padjust_method = "fdr",
   return_full_result = TRUE,
@@ -43,6 +44,8 @@ FindDEG_nebula(
 \item{min_cells}{number of cells (in currently evaluated cluster) for a sample to be valid}
 
 \item{min_pct_valid_samples}{how many valid samples have to be in cluster in order to include this cluster. 0.5 means 50\% of samples must have at least min_cells in the cluster. Set this to 1 to requires all samples to have min_cells.}
+
+\item{min_pct}{min_pct of cells in cluster expressing a feature}
 
 \item{assay}{"RNA" or other assay from seurat object}
 

@@ -93,6 +93,7 @@ run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id
 #' @param nCounts column name in seurat meta.data with the scaling factor ("offset" in nebula). Can be NULL if all features are used. Then the scaling factor is the total counts number.
 #' @param min_cells number of cells (in currently evaluated cluster) for a sample to be valid
 #' @param min_pct_valid_samples how many valid samples have to be in cluster in order to include this cluster. 0.5 means 50% of samples must have at least min_cells in the cluster. Set this to 1 to requires all samples to have min_cells.
+#' @param min_pct min_pct of cells in cluster expressing a feature
 #' @param assay "RNA" or other assay from seurat object
 #' @param padjust_method defaults to "fdr" . directly passed to stats::p.adjust
 #' @param return_full_result return only marker table or list with all nebula outputs
@@ -104,10 +105,11 @@ run_nebula = function(counts,metadata, formula_string = "~ treatment",subject_id
 #'
 #' @export
 #'
+#' @importFrom dplyr left_join bind_rows
 #' @importFrom Seurat SplitObject
 #' @importFrom stats p.adjust
 
-FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sample_variable="Sample_ID",primary_variable="Condition",reference_level="control",other_variables=c(),features = NULL,nCounts=NULL,min_cells=5,min_pct_valid_samples = 0.5,assay="RNA",padjust_method="fdr",return_full_result = TRUE,numCores = 1,verbose=TRUE,...){
+FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sample_variable="Sample_ID",primary_variable="Condition",reference_level="control",other_variables=c(),features = NULL,nCounts=NULL,min_cells=5,min_pct_valid_samples = 0.5,min_pct=0.05,assay="RNA",padjust_method="fdr",return_full_result = TRUE,numCores = 1,verbose=TRUE,...){
 
   # optional use of packages:
   if (!requireNamespace("nebula", quietly = TRUE)) {
@@ -119,10 +121,8 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
     warning("The foreach package must be installed to use this function")
     return(NULL)
   }
-
-  # optional use of packages:
   if (!requireNamespace("doParallel", quietly = TRUE)) {
-    warning("The doParallel package must be installed to use this function")
+    warning("The foreach package must be installed to use this function")
     return(NULL)
   }
 
@@ -135,6 +135,9 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
   }
   if(! primary_variable %in%  colnames(seurat_object@meta.data)){
     stop("Cannot find primary_variable: '",primary_variable,"' in meta.data.")
+  }
+  if(! reference_level %in%  unique(seurat_object@meta.data[,primary_variable])){
+    stop("Cannot find reference_level: '",reference_level,"' primary_variable levels in meta.data.")
   }
   if(! all(other_variables %in%  colnames(seurat_object@meta.data))){
     stop("Cannot find one or more of the other_variables in meta.data.")
@@ -188,10 +191,22 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
   # run in parallel: I pass errors to be able to set the names of the result list afterwards
   nebula_result_list <- foreach::foreach(subset_seurat_object = seurat_object_list,.errorhandling = "pass",.verbose=FALSE) %dopar% {
     message(subset_seurat_object@project.name)
+
+    # get fcs similar to Seurat
+    cells_reference_level = rownames(subset_seurat_object@meta.data)[subset_seurat_object@meta.data[,primary_variable] == reference_level]
+    cells_other_levels = rownames(subset_seurat_object@meta.data)[subset_seurat_object@meta.data[,primary_variable] != reference_level]
+    foldchange_df = FoldChange_seurat(subset_seurat_object@assays[[assay]]@data,cells.1 = cells_other_levels,cells.2 = cells_reference_level ,features = features)
+
+    # further subset
+    alpha.min <- pmax(foldchange_df$pct.1, foldchange_df$pct.2)
+    names(x = alpha.min) <- foldchange_df$gene
+    subset_features <- names(x = which(x = alpha.min >= min_pct))
+    foldchange_df_subset = foldchange_df[foldchange_df$gene %in% subset_features,]
+
     # prepare input
     subset_metadata = subset_seurat_object@meta.data[,c(sample_variable,primary_variable,other_variables,nCounts),drop=FALSE]
     subset_metadata$Cell_ID = rownames(subset_metadata)
-    subset_counts = subset_seurat_object@assays[[assay]]@counts[features,]
+    subset_counts = subset_seurat_object@assays[[assay]]@counts[subset_features,]
     # reorder
     if(reference_level %in% subset_seurat_object@meta.data[,primary_variable] ){
       level_order = c(reference_level,unique(subset_metadata[,primary_variable])[unique(subset_metadata[,primary_variable]) != reference_level])
@@ -214,6 +229,7 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
                             cell_id="Cell_ID",
                             cell_size = nCounts,...)
 
+    nebula_res$foldchange_df = foldchange_df_subset
     # result
     nebula_res
 
@@ -223,10 +239,14 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
   # convert nebula results
   deg_dataframe_list = sapply(names(nebula_result_list),function(cluster_name,nebula_res_list,primary_variable){
     current_res = nebula_res_list[[cluster_name]]
-    if(length(current_res) >= 5){
+    if(length(current_res) >= 2){
       marker_summary = current_res$summary[,c("gene"),drop=FALSE]
       marker_summary$cluster = cluster_name
       marker_summary = as.data.frame(cbind(marker_summary,current_res$summary[,colnames(current_res$summary)[grepl(primary_variable,colnames(current_res$summary))]]))
+      marker_fcs = current_res$foldchange_df
+      marker_fcs$avg_log2FC = round(marker_fcs$avg_log2FC,5)
+      marker_fcs$pct_diff = marker_fcs$pct.1 - marker_fcs$pct.2
+      marker_summary = dplyr::left_join(marker_summary,marker_fcs,by="gene")
       # if(length(colnames(current_res$summary)[grepl(paste0("p_",primary_variable),colnames(current_res$summary))]) == 1){
       #   marker_summary$padj = stats::p.adjust(p = marker_summary[,colnames(current_res$summary)[grepl(paste0("p_",primary_variable),colnames(current_res$summary))]],method = padjust_method)
       # }
@@ -253,3 +273,60 @@ FindDEG_nebula = function(seurat_object,cluster_variable="seurat_clusters",sampl
   }
   return(return_list)
 }
+
+
+##########
+### foldchange from seurat
+##########
+
+#' Calculate general FC and pcts between two cell groups
+#'
+#' https://github.com/satijalab/seurat/blob/master/R/differential_expression.R
+#'
+#' @param cells.1 Vector of cell names belonging to group 1
+#' @param cells.2 Vector of cell names belonging to group 2
+#' @param features Features to calculate fold change for.
+#' If NULL, use all features
+#'
+#' @importFrom Matrix rowSums
+
+FoldChange_seurat <- function(
+    object,
+    cells.1,
+    cells.2,
+    features = NULL
+) {
+  if(is.null(features)){
+    features <- rownames(x = object)
+  }else{
+    features <- features[features %in% rownames(x = object)]
+  }
+  # mean.fxn -> always use log2
+  fc.name = "avg_log2FC"
+  mean.fxn <- function(x) {
+    base = 2
+    pseudocount.use = 1
+    return(log(x = rowMeans(x = expm1(x = x)) + pseudocount.use, base = base))
+  }
+
+  # Calculate percent expressed
+  thresh.min <- 0
+  pct.1 <- round(
+    x = rowSums(x = object[features, cells.1, drop = FALSE] > thresh.min) /
+      length(x = cells.1),
+    digits = 3
+  )
+  pct.2 <- round(
+    x = rowSums(x = object[features, cells.2, drop = FALSE] > thresh.min) /
+      length(x = cells.2),
+    digits = 3
+  )
+  # Calculate fold change
+  data.1 <- mean.fxn(object[features, cells.1, drop = FALSE])
+  data.2 <- mean.fxn(object[features, cells.2, drop = FALSE])
+  fc <- (data.1 - data.2)
+  fc.results <- data.frame(gene = features,fc = fc, pct.1 = pct.1, pct.2 = pct.2)
+  colnames(fc.results)[2] <- fc.name
+  return(fc.results)
+}
+
