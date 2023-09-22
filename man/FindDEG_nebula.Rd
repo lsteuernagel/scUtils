@@ -33,7 +33,7 @@ FindDEG_nebula(
 
 \item{primary_variable}{column name in seurat meta.data with the main variable to compare (condition, treatment etc.)}
 
-\item{reference_level}{character string. which level of the primary_variable should be the reference in the model}
+\item{reference_level}{character string. which level of the primary_variable should be the reference in the model (typically control )}
 
 \item{other_variables}{column names in seurat meta.data with other relevant variables to include in nebula model}
 
@@ -49,7 +49,7 @@ FindDEG_nebula(
 
 \item{assay}{"RNA" or other assay from seurat object}
 
-\item{padjust_method}{defaults to "fdr" . directly passed to stats::p.adjust}
+\item{padjust_method}{defaults to "fdr" . directly passed to stats::p.adjust. Currently not used!}
 
 \item{return_full_result}{return only marker table or list with all nebula outputs}
 
